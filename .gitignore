@@ -1,8 +1,9 @@
 node_modules/
 dist/
 
-# Working copies of the source clips at the repo root. The one the page
-# actually loads is docs/carbo1.mp4 — re-encoded for seeking — and is tracked.
+# Working copies of the source clips at the repo root. What the page loads is
+# docs/carbo1.mp4 and docs/carbo2.mp4 — re-encoded for seeking, the second one
+# cut down to the two beats it is used for — and both of those are tracked.
 /carbo1.MP4
 /carbo2.MP4
 coverage/

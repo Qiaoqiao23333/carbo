@@ -1,9 +1,17 @@
 /*
- * One clip at full window height, centred and never moving — the cursor drives
- * the playhead, not the picture (see app.js). Behind it, the same frame blown
- * up and blurred fills the rest of the window, so the video has no visible
- * edge. Everything else is an overlay.
+ * The page is the inside of the tube she is looking into.
+ *
+ * Both clips are laid out by JS (see layout() in app.js) so the hole in the
+ * footage is wider than the window: her face covers the page, and the tube wall
+ * only ever shows up in the corners, where .tube keeps it dark and out of the
+ * way. Nothing here is letterboxed, so there is no edge to give the video away.
  */
+
+@property --iris {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
 
 :root {
   --ink: #f4efe9;
@@ -11,6 +19,19 @@
   --ink-faint: #8b8279;
   --line: rgba(244, 239, 233, 0.16);
   --glow: #c9a227;
+
+  /* Sampled off the frame on screen, so the rim never fights the footage. */
+  --room-warm: 46, 34, 27;
+
+  /* Written every frame by JS: the lean, the push of a contact, and one bump. */
+  --pan-x: 0px;
+  --pan-y: 0px;
+  --bump-x: 0px;
+  --bump-y: 0px;
+  --push: 1;
+
+  --touch-x: 50%;
+  --touch-y: 50%;
 
   --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB',
@@ -28,7 +49,9 @@ body {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: #0b0908;
+  background: #070605;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 body {
@@ -36,72 +59,79 @@ body {
   font-family: var(--sans);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  cursor: crosshair;
 }
 
-/* ---------------------------------------------------------------- the clip */
-
-/*
- * The current frame, tiny and blown up under a heavy blur, filling the window
- * behind the clip. Overscanned so the blur has material past every edge.
- */
-.ambient {
-  position: fixed;
-  left: -10%;
-  top: -10%;
-  width: 120%;
-  height: 120%;
-  z-index: 0;
-  filter: blur(56px) saturate(calc(var(--grade-sat) * 1.15))
-    brightness(calc(var(--grade-bright) * 0.62)) contrast(var(--grade-contrast));
-  pointer-events: none;
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
+/* ------------------------------------------------------------------- the room */
+
 /*
- * Size and position come from JS (see relayout in app.js): full window height,
- * centred, aspect preserved. Set once per resize and never animated — the clip
- * holds still and only the playhead moves.
+ * One transform for the whole world. The cursor leans it a little, and being
+ * touched pushes it a little further into your face — doing that on the
+ * container means the two clips can never drift apart from each other.
  *
- * The side edges are feathered into the blur behind, which is the same frame in
- * the same tone, so there is no line where the video stops and the page starts.
+ * Deliberately no rotation and no oscillation. The footage is handheld and
+ * magnified, so it is already moving more than a still page ever would; adding
+ * a shake on top of that is what made this unpleasant to sit in front of.
  */
-#video {
+.room {
   position: fixed;
-  z-index: 1;
-  --feather: linear-gradient(
-    to right,
-    transparent 0,
-    #000 clamp(3rem, 14vmin, 9rem),
-    #000 calc(100% - clamp(3rem, 14vmin, 9rem)),
-    transparent 100%
-  );
-  -webkit-mask-image: var(--feather);
-  mask-image: var(--feather);
+  inset: 0;
+  z-index: 0;
+  transform: translate3d(
+      calc(var(--pan-x) + var(--bump-x)),
+      calc(var(--pan-y) + var(--bump-y)),
+      0
+    )
+    scale(var(--push));
+  transform-origin: 50% 45%;
+  will-change: transform;
   filter: saturate(var(--grade-sat)) brightness(var(--grade-bright))
     contrast(var(--grade-contrast));
+  transition: filter 1.4s ease;
+}
+
+/* Size and position come from JS; both clips are stacked on the same anchor. */
+.clip {
+  position: absolute;
+  object-fit: cover;
+  background: #100c0a;
 }
 
 /*
- * Mood grading. Held as three numbers rather than as a filter per element, so
- * the clip and the background it melts into always get the same treatment —
- * grade only one of them and the join reappears.
+ * The paw clip is only up during a contact, and it arrives fast — a slow
+ * dissolve would read as a scene change instead of something touching you.
  */
+#paw {
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+#paw.on {
+  opacity: 1;
+}
+
+/* Mood grading, held as numbers so anything inside .room gets the same pass. */
 :root {
   --grade-sat: 1;
   --grade-bright: 1;
   --grade-contrast: 1;
 }
 
-#video,
-.ambient {
-  transition: filter 1.4s ease;
-}
-
 body[data-mood='sleepy'] {
-  --grade-sat: 0.35;
-  --grade-bright: 0.6;
+  --grade-sat: 0.4;
+  --grade-bright: 0.62;
 }
 body[data-mood='hungry'] {
-  --grade-sat: 0.9;
+  --grade-sat: 0.95;
   --grade-contrast: 1.08;
 }
 body[data-mood='restless'] {
@@ -109,8 +139,8 @@ body[data-mood='restless'] {
   --grade-contrast: 1.14;
 }
 body[data-mood='aloof'] {
-  --grade-sat: 0.66;
-  --grade-bright: 0.86;
+  --grade-sat: 0.7;
+  --grade-bright: 0.88;
 }
 body[data-mood='affectionate'] {
   --grade-sat: 1.16;
@@ -118,31 +148,142 @@ body[data-mood='affectionate'] {
 }
 body[data-mood='playful'] {
   --grade-sat: 1.1;
-  --grade-bright: 1.02;
+  --grade-bright: 1.03;
 }
 
+/* ------------------------------------------------------------------ the tube */
+
 /*
- * A soft mood wash and a floor vignette, so overlay text has something to sit
- * on no matter which part of the footage is on screen.
+ * Cardboard close to your face: dark in the corners, tinted with the colour
+ * sampled off the current frame, with a faint rim of light where the hole ends.
+ * This is what hides the tube wall when the shot drifts.
  */
-body::after {
-  content: '';
+.tube {
   position: fixed;
   inset: 0;
   z-index: 2;
   pointer-events: none;
   background:
-    linear-gradient(to top, rgba(9, 7, 6, 0.82), transparent 30%),
-    linear-gradient(to bottom, rgba(9, 7, 6, 0.6), transparent 26%),
-    radial-gradient(130% 110% at 50% 50%, transparent 35%, rgba(9, 7, 6, 0.55));
-  transition: background 1.6s ease;
+    /* A circle, sized to the corners: an ellipse fitted to the window instead
+       crushes the top and bottom of her face on a wide screen. */
+    radial-gradient(
+        circle at 50% 46%,
+        transparent 30%,
+        rgba(var(--room-warm), 0.34) 66%,
+        rgba(8, 6, 5, 0.74) 86%,
+        rgba(4, 3, 2, 0.97) 100%
+      ),
+    /* The lit edge of the hole, just inside the dark. */
+    radial-gradient(
+        circle at 50% 46%,
+        transparent 70%,
+        rgba(255, 240, 220, 0.07) 79%,
+        transparent 89%
+      ),
+    linear-gradient(to top, rgba(6, 5, 4, 0.62), transparent 22%);
 }
+
+/*
+ * Blinked over a cut: the picture is a face at arm's length, and a hard cut
+ * between two of those reads as a jolt. Light only, no movement.
+ */
+.blink {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  background: #080605;
+}
+
+.blink.shut {
+  animation: blink 0.3s ease-in-out;
+}
+
+@keyframes blink {
+  0% {
+    opacity: 0;
+  }
+  26% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The warmth of contact, radiating from wherever she landed. */
+.warmth {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    60% 60% at var(--touch-x) var(--touch-y),
+    rgba(255, 226, 190, 0.5),
+    rgba(255, 198, 150, 0.16) 45%,
+    transparent 72%
+  );
+}
+
+.warmth.flash {
+  animation: warmth 1.15s ease-out forwards;
+}
+
+@keyframes warmth {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ----------------------------------------------------------------- the opening */
+
+/*
+ * Shut over the whole window until the first frame is ready, then it opens from
+ * the middle, the way something dark opens when a cat's head blocks the light
+ * and then moves.
+ */
+.lid {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background: #070605;
+  --iris: 0%;
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 46%,
+    transparent var(--iris),
+    #000 calc(var(--iris) + 26%)
+  );
+  mask-image: radial-gradient(
+    circle at 50% 46%,
+    transparent var(--iris),
+    #000 calc(var(--iris) + 26%)
+  );
+  transition:
+    --iris 1.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 1.4s ease 0.35s;
+}
+
+body:not([data-phase='opening']) .lid {
+  --iris: 130%;
+  opacity: 0;
+}
+
+/* ---------------------------------------------------------------- overlay text */
 
 .zzz {
   position: fixed;
-  z-index: 3;
+  z-index: 4;
   left: 50%;
-  bottom: 22%;
+  bottom: 24%;
   transform: translateX(-50%);
   font-family: var(--mono);
   font-size: clamp(1.1rem, 3vmin, 2rem);
@@ -175,39 +316,37 @@ body[data-asleep='true'] .zzz {
 .ripple {
   position: fixed;
   z-index: 4;
-  width: 6rem;
-  height: 6rem;
-  margin: -3rem 0 0 -3rem;
+  width: 7rem;
+  height: 7rem;
+  margin: -3.5rem 0 0 -3.5rem;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  animation: ripple 0.8s ease-out forwards;
+  border: 2px solid rgba(255, 236, 214, 0.7);
+  animation: ripple 0.9s ease-out forwards;
   pointer-events: none;
 }
 
 @keyframes ripple {
   from {
-    transform: scale(0.15);
+    transform: scale(0.12);
     opacity: 0.9;
   }
   to {
-    transform: scale(1.4);
+    transform: scale(1.5);
     opacity: 0;
   }
 }
-
-/* ------------------------------------------------------------------ bubble */
 
 .bubble {
   position: fixed;
   z-index: 5;
   left: 50%;
-  top: 62%;
-  transform: translate(-50%, 0);
+  bottom: 15%;
+  transform: translateX(-50%);
   margin: 0;
-  max-width: min(24rem, 80vw);
+  max-width: min(26rem, 82vw);
   text-align: center;
   font-family: var(--mono);
-  font-size: clamp(1rem, 2.4vmin, 1.5rem);
+  font-size: clamp(0.95rem, 2.2vmin, 1.35rem);
   text-shadow: 0 0.15rem 1.4rem rgba(0, 0, 0, 0.95);
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -226,65 +365,143 @@ body[data-asleep='true'] .zzz {
 
 /* ---------------------------------------------------------------- masthead */
 
+/*
+ * Small, and late: the page opens on her face, and the name only fades up once
+ * she has already touched you.
+ */
 .masthead {
   position: fixed;
-  z-index: 6;
-  top: clamp(1.25rem, 4vh, 3rem);
-  left: clamp(1.25rem, 4vw, 3.5rem);
-  max-width: min(26rem, 60vw);
-  text-shadow: 0 0.15rem 1.5rem rgba(0, 0, 0, 0.9);
+  z-index: 5;
+  top: max(1.1rem, env(safe-area-inset-top));
+  left: clamp(1rem, 3.5vw, 2.75rem);
+  max-width: min(22rem, 58vw);
+  text-shadow: 0 0.15rem 1.5rem rgba(0, 0, 0, 0.95);
   pointer-events: none;
+  opacity: 0;
+  transform: translateY(-0.4rem);
+  transition:
+    opacity 1.4s ease,
+    transform 1.4s ease;
 }
 
-.masthead code,
-.masthead a {
-  pointer-events: auto;
+body[data-phase='live'] .masthead {
+  opacity: 1;
+  transform: none;
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(2.6rem, 6vw, 4.5rem);
-  line-height: 0.92;
+  font-size: clamp(1.7rem, 3.4vw, 2.6rem);
+  line-height: 0.95;
   letter-spacing: -0.045em;
   font-weight: 650;
 }
 
-.tagline {
-  margin: 0.6rem 0 1rem;
-  color: var(--ink-dim);
-  font-size: clamp(0.9rem, 1.2vw, 1rem);
-  text-wrap: pretty;
-}
-
-.install {
-  font-family: var(--mono);
-  font-size: 0.82rem;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  padding: 0.4rem 0.75rem;
-  display: inline-block;
-}
-
+/* The one instruction the page needs, in the middle, then gone for good. */
 .hint {
-  margin: 1rem 0 0;
-  font-size: 0.78rem;
-  color: var(--ink-faint);
-  transition: opacity 0.8s ease;
+  position: fixed;
+  z-index: 5;
+  left: 50%;
+  bottom: 8.5%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-family: var(--mono);
+  font-size: clamp(0.72rem, 1.5vmin, 0.85rem);
+  letter-spacing: 0.06em;
+  color: rgba(244, 239, 233, 0.62);
+  text-shadow: 0 0.15rem 1.2rem rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
 }
 
-.hint.gone {
+body[data-phase='live'] .hint {
+  opacity: 1;
+}
+
+.hint.gone,
+/* Something she just did outranks a standing instruction, and on a short
+   window the two of them land on top of each other. */
+.bubble.show ~ .hint {
   opacity: 0;
 }
 
-/* --------------------------------------------------------------------- hud */
+/* --------------------------------------------------------------- the readout */
+
+/*
+ * The library is still running the cat, and you can still open her up and see
+ * it — but folded into a corner, because the page is her face now.
+ */
+.controls {
+  position: fixed;
+  z-index: 7;
+  right: clamp(1rem, 3.5vw, 2.75rem);
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+body[data-phase='live'] .controls {
+  opacity: 1;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--ink);
+  background: rgba(11, 9, 8, 0.5);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  transition:
+    background 0.2s ease,
+    color 0.6s ease;
+}
+
+.chip:hover {
+  background: rgba(11, 9, 8, 0.75);
+}
+
+.chip em {
+  font-style: normal;
+  color: var(--glow);
+  transition: color 1.2s ease;
+}
+
+.chev {
+  font-size: 0.6rem;
+  color: var(--ink-faint);
+  transition: transform 0.25s ease;
+}
+
+body[data-panel='open'] .chev {
+  transform: rotate(180deg);
+}
+
+#soundBtn {
+  color: var(--ink-faint);
+  padding: 0.35rem 0.62rem;
+}
+
+#soundBtn[aria-pressed='true'] {
+  color: var(--glow);
+}
 
 .hud {
   position: fixed;
   z-index: 6;
-  left: clamp(1.25rem, 4vw, 3.5rem);
-  bottom: clamp(1.25rem, 4vh, 2.5rem);
-  right: clamp(1.25rem, 4vw, 3.5rem);
+  left: clamp(1rem, 3.5vw, 2.75rem);
+  right: clamp(1rem, 3.5vw, 2.75rem);
+  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 3rem);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -292,9 +509,21 @@ h1 {
   padding: 0.85rem 1.1rem;
   border: 1px solid var(--line);
   border-radius: 1rem;
-  background: rgba(11, 9, 8, 0.55);
+  background: rgba(11, 9, 8, 0.62);
   backdrop-filter: blur(16px) saturate(1.1);
   -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  opacity: 0;
+  transform: translateY(0.6rem);
+  pointer-events: none;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+
+body[data-panel='open'] .hud {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
 }
 
 .readout {
@@ -451,9 +680,10 @@ h1 {
     max-width: 70vw;
   }
 
-  .tagline,
-  .hint {
-    display: none;
+  /* Three lines of her talking, up out of the way of the standing hint. */
+  .bubble {
+    bottom: 19%;
+    max-width: 74vw;
   }
 
   .hud {
@@ -471,11 +701,29 @@ h1 {
   }
 }
 
+/*
+ * No leaning, no shake, no iris: she still comes and goes, but the page holds
+ * still while she does it.
+ */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+  .room {
+    transform: none;
+  }
+
+  .blink.shut {
+    animation: none;
+  }
+
+  .lid {
+    transition: opacity 0.6s ease;
+  }
+
+  .warmth.flash {
+    animation-duration: 0.9s;
+  }
+
+  .zzz,
+  .ripple {
+    animation: none;
   }
 }

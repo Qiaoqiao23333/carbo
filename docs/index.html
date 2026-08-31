@@ -2,61 +2,100 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>carbo — a tiny virtual cat</title>
     <meta
       name="description"
-      content="A zero-dependency TypeScript library modelling a cat with drifting needs, moods, and interactions she may decline. Starring the real Carbo."
+      content="A zero-dependency TypeScript library modelling a cat with drifting needs, moods, and interactions she may decline. Starring the real Carbo, close enough to touch."
     />
     <meta property="og:title" content="carbo — a tiny virtual cat" />
     <meta
       property="og:description"
-      content="Feed her, play with her, pet her. She may decline."
+      content="Hold still and she comes closer. Feed her, play with her, pet her. She may decline."
     />
     <meta property="og:image" content="./assets/poster.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#0b0908" />
     <link rel="icon" href="./assets/carbo.jpg" />
     <link rel="stylesheet" href="./style.css" />
   </head>
 
-  <body data-mood="content" data-asleep="false">
+  <body data-mood="content" data-asleep="false" data-phase="opening">
     <!--
-      Full window height, centred, and never played on its own: the cursor's
-      horizontal position is the playhead, so moving your hand runs the camera
-      back and forth. See app.js for why this beats jumping to whichever frame
-      had the tube nearest the cursor.
-    -->
-    <!--
-      The page's background is the current frame itself: a 32x57 canvas redrawn
-      from the video and blown up under a heavy blur. A static image behind a
-      clip being scrubbed drifts out of tone with it, and that mismatch is what
-      makes the edge of the video visible.
-    -->
-    <canvas id="ambient" class="ambient" width="32" height="57" aria-hidden="true"></canvas>
+      You are inside the tube she is looking into, and the window is your
+      screen: both clips are laid out by JS so that the hole in the footage is
+      wider than the viewport (see layout() in app.js), which is what puts her
+      face over the whole page instead of in a small round frame in the middle.
 
-    <video
-      id="video"
-      src="./carbo1.mp4"
-      poster="./assets/poster.jpg"
-      muted
-      playsinline
-      preload="auto"
-      aria-hidden="true"
-    ></video>
+      .room carries the parallax and the shake, so a contact moves the whole
+      world rather than one element.
+    -->
+    <div class="room" id="room">
+      <video
+        id="her"
+        class="clip"
+        src="./carbo1.mp4"
+        poster="./assets/frame.jpg"
+        muted
+        playsinline
+        preload="auto"
+        aria-hidden="true"
+      ></video>
+      <!--
+        Two seconds of the second clip: her paw arriving over the lens, twice.
+        It only ever appears during a contact, cross-faded in under the shake.
+      -->
+      <video
+        id="paw"
+        class="clip"
+        src="./carbo2.mp4"
+        muted
+        playsinline
+        preload="auto"
+        aria-hidden="true"
+      ></video>
+    </div>
+
+    <!-- The rim of the tube: dark, close, tinted by whatever is on screen. -->
+    <div class="tube" aria-hidden="true"></div>
+    <!-- Dipped over a cut, so the jump between two beats is not a jolt. -->
+    <div class="blink" id="blink" aria-hidden="true"></div>
+    <!-- Warmth of a nose or a paw landing on you. -->
+    <div class="warmth" id="warmth" aria-hidden="true"></div>
+    <!-- Shut until the footage is ready, then it opens like an eye. -->
+    <div class="lid" id="lid" aria-hidden="true"></div>
 
     <div class="zzz" id="zzz" aria-hidden="true">z &nbsp;z &nbsp;z</div>
     <p class="bubble" id="bubble" role="status" aria-live="polite"></p>
 
+    <!-- Her name, and nothing else: the page is her face. -->
     <header class="masthead">
       <h1>carbo</h1>
-      <p class="tagline">
-        A tiny virtual cat, modelled after a real kitten of the same name.
-      </p>
-      <code class="install">npm install carbo</code>
-      <p class="hint" id="hint">
-        Move your cursor left and right. Click her to pet.
-      </p>
     </header>
+
+    <p class="hint" id="hint">Hold still. She comes closer.</p>
+
+    <div class="controls">
+      <button
+        type="button"
+        id="soundBtn"
+        class="chip"
+        aria-pressed="false"
+        title="Purring"
+      >
+        <span aria-hidden="true">♪</span><span class="sr">purring</span>
+      </button>
+      <button
+        type="button"
+        id="panelBtn"
+        class="chip"
+        aria-expanded="false"
+        aria-controls="hud"
+      >
+        <em id="chipMood">content</em>
+        <span aria-hidden="true" class="chev">▲</span>
+      </button>
+    </div>
 
     <footer class="hud" id="hud">
       <div class="readout">

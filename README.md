@@ -215,22 +215,78 @@ new Carbo({
 
 ## The demo page
 
-`docs/` holds a full-screen homepage built on the library. A clip of the real
-Carbo — peering down a cardboard tube — stands at full window height, and your
-cursor's horizontal position is its playhead, so moving your hand runs the
-camera back and forth over her. Behind the clip, the same frame blown up and
-blurred fills the rest of the window, so the video has no visible edge. The
-mood grading, how eagerly the playhead chases the cursor, and the readout are
-all driven by a live `Carbo` instance ticking at 360× real time.
+`docs/` holds a full-screen homepage built on the library. Two clips of the real
+Carbo — one shot from inside a cardboard tube she was peering down, one from
+inside a box she was reaching into — are blown up and hung off an anchor point
+so that the hole she is looking into is wider than the window. The page is the
+inside of that tube: her face covers all of it, the corners are dark, and there
+is no edge of a video anywhere on screen.
 
-An earlier version matched the cursor to whichever frame had the tube nearest
-that spot. It put her exactly where you pointed, but it jumped around the
-timeline to do it and the picture flickered. Mapping the cursor to *time*
-instead keeps the footage continuous, and a cap on the scrub rate stops a fast
-sweep from becoming a blur.
+The footage plays in *beats*: short marked stretches of the clips, each one a
+single thing she does. Watching you. Sniffing the rim. Leaning in. Putting her
+face over the hole until it blocks the light. A paw landing on the lens. Your
+cursor does not scrub the timeline any more — it only decides which beat comes
+next. Hold still and she comes over and touches the lens, which pushes the page,
+warms the light where she landed, and purrs. Wave your hand about and she backs
+off. Click anywhere and she is petted, and she may decline. The mood grading,
+how far the page leans with your cursor, how long you have to hold still before
+she comes, and the readout are all driven by a live `Carbo` instance ticking at
+360× real time.
 
-The clip is re-encoded with every frame a keyframe, so seeking to an arbitrary
-time is instant instead of decoding forward from the last keyframe.
+An earlier version made the cursor's horizontal position the playhead, so moving
+your hand ran the camera back and forth over her. It put her where you pointed,
+but it cost her her own motion: the footage moved only when you did and only as
+fast as you did, and it read as a video being dragged rather than as a cat.
+Beats keep everything on screen a real movement at its real speed, which is most
+of what makes her feel like she is there.
+
+Two details of the arrival are load-bearing. It happens without being asked —
+the window opens on her already looking at you and she has touched you inside a
+couple of seconds — and the beat it uses comes off the short clip, which is
+370KB and starts at the head of the file. The one moment the page promises at a
+particular second does not wait on a seek twelve seconds into the long one.
+
+The clips are re-encoded with a keyframe every half second, so cutting to a beat
+lands quickly instead of decoding forward from the last keyframe.
+
+### Keeping it still enough to sit in front of
+
+The first version of this was unpleasant to look at, and all of it came from the
+same place: a page filling the window with a handheld clip magnified three times
+is showing you three times the camera shake it was shot with, and that adds up
+fast. Four things were done about it, in order of how much they were worth.
+
+1. **The clips are shipped stabilised.** An offline pass estimates the camera's
+   own movement frame by frame, subtracts everything above about a third of a
+   hertz, and re-renders the clip cropped in 22% so the correction never exposes
+   an edge. That takes a third of the movement out of the footage, and about a
+   quarter of it off the screen once the crop is paid for. Both signs in that
+   pass were settled by measuring the output rather than by reasoning about
+   them, which is worth doing: the first attempt had one of them inverted and
+   made the shake almost twice as bad.
+2. **The beats are cut for stillness.** The frame to frame movement was measured
+   across the whole clip, and the beats are the calmest stretches that also end
+   close to where they began — the second half of that being what lets a beat
+   repeat without the repeat showing. The busiest thirds of the take are never
+   played.
+3. **Everything runs at about three quarters speed**, which reads as a cat
+   taking her time rather than as slow motion.
+4. **The page adds almost no motion of its own.** An earlier version shook the
+   whole window on contact and leaned it a quarter of an inch with the cursor;
+   now a contact is a single damped push of a few pixels, there is no rotation
+   at any strength, and the lean is about a third of what it was. Hard cuts are
+   covered by the page blinking — a dip in light rather than any movement.
+
+Measured off the clips as they ship — movement per frame within the beats that
+actually get played, times the playback rate, times the magnification the window
+asks for — the picture went from sliding around 43% of the window's width every
+second to around 17%. On screenshots of the running page, the number of hard
+changes between samples fell by two thirds. `prefers-reduced-motion` drops the
+lean, the push and the blink entirely; she still comes and goes.
+
+Nothing makes a sound until you have clicked once, because nothing is allowed
+to; the purr is synthesised rather than lifted off the clips, and the corner
+toggle turns it off for good.
 
 It is plain static files with no build step at serve time, so any static host
 works. The host does need to support HTTP range requests — `python3 -m
