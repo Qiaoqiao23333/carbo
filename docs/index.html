@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>carbo — a tiny virtual cat</title>
+    <meta
+      name="description"
+      content="A zero-dependency TypeScript library modelling a cat with drifting needs, moods, and interactions she may decline. Starring the real Carbo."
+    />
+    <meta property="og:title" content="carbo — a tiny virtual cat" />
+    <meta
+      property="og:description"
+      content="Feed her, play with her, pet her. She may decline."
+    />
+    <meta property="og:image" content="./assets/poster.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="./assets/carbo.jpg" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+
+  <body data-mood="content" data-asleep="false">
+    <!--
+      The tube is not drawn — it is in the footage. The clip is masked down to
+      a soft circle centred on its own opening and moved so that opening sits
+      under the cursor, so what follows you is the real thing.
+    -->
+    <div class="tube" id="tube" aria-hidden="true">
+      <div class="spill"></div>
+      <video
+        id="video"
+        src="./carbo1.mp4"
+        poster="./assets/poster.jpg"
+        muted
+        loop
+        playsinline
+        autoplay
+        preload="auto"
+      ></video>
+      <div class="zzz">z &nbsp;z &nbsp;z</div>
+    </div>
+
+    <p class="bubble" id="bubble" role="status" aria-live="polite"></p>
+
+    <!-- The library, over the top. -->
+    <header class="masthead">
+      <h1>carbo</h1>
+      <p class="tagline">
+        A tiny virtual cat, modelled after a real kitten of the same name.
+      </p>
+      <code class="install">npm install carbo</code>
+      <p class="hint" id="hint">Move your cursor — click her to pet.</p>
+    </header>
+
+    <footer class="hud" id="hud">
+      <div class="readout">
+        <strong id="mood">content</strong>
+        <span id="meta">kitten · 84.0 days · perfectly fine</span>
+      </div>
+
+      <dl class="stats">
+        <div class="stat" data-key="hunger">
+          <dt>hunger</dt>
+          <dd><span class="bar"><i></i></span></dd>
+        </div>
+        <div class="stat" data-key="energy">
+          <dt>energy</dt>
+          <dd><span class="bar"><i></i></span></dd>
+        </div>
+        <div class="stat" data-key="affection">
+          <dt>affection</dt>
+          <dd><span class="bar"><i></i></span></dd>
+        </div>
+        <div class="stat" data-key="boredom">
+          <dt>boredom</dt>
+          <dd><span class="bar"><i></i></span></dd>
+        </div>
+      </dl>
+
+      <div class="actions">
+        <button type="button" data-action="feed" data-food="wet">wet food</button>
+        <button type="button" data-action="feed" data-food="tuna">tuna</button>
+        <button type="button" data-action="feed" data-food="treat">treat</button>
+        <button type="button" data-action="play">play</button>
+        <button type="button" data-action="pet">pet</button>
+        <button type="button" data-action="toggle-sleep" id="sleepBtn">nap</button>
+      </div>
+
+      <div class="meta-actions">
+        <button type="button" id="sound" aria-pressed="false">
+          <span aria-hidden="true">🔈</span> sound
+        </button>
+        <a href="https://github.com/CARBO_REPO_SLUG">source</a>
+        <button type="button" id="reset" class="linkish">start over</button>
+      </div>
+
+      <p class="log" id="log"></p>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+    <noscript>
+      <p class="noscript">
+        This page is a live instance of the <code>carbo</code> library, so it
+        needs JavaScript. The library is on
+        <a href="https://github.com/CARBO_REPO_SLUG">GitHub</a>.
+      </p>
+    </noscript>
+  </body>
+</html>

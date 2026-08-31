@@ -1,3 +1,5 @@
+<img src="docs/assets/carbo.jpg" alt="Carbo, a tabby kitten, peering down into a tube" width="180" align="right" />
+
 # carbo
 
 A tiny virtual cat, modelled after a real kitten of the same name.
@@ -210,6 +212,24 @@ new Carbo({
   random: Math.random,
 });
 ```
+
+## The demo page
+
+`docs/` holds a full-screen homepage built on the library: the real Carbo fills
+the window, and a tube-shaped opening follows your cursor — inside it she is
+sharp and lit, outside she is dark and out of focus. The mood grading, the
+playback speed, the size of the opening and the readout are all driven by a
+live `Carbo` instance, ticking at 360× real time.
+
+It is plain static files with no build step at serve time, so any static host
+works:
+
+```sh
+npm run build          # regenerates docs/carbo.js from src/
+cd docs && python3 -m http.server 8765
+```
+
+The page needs `docs/carbo1.mp4` — the source clip — to be present.
 
 ## Development
 

@@ -1,5 +1,10 @@
 node_modules/
 dist/
+
+# The source clip of the real Carbo. The demo page needs docs/carbo1.mp4 to be
+# present locally; it is kept out of the repo until we decide to publish it.
+carbo1.MP4
+docs/carbo1.mp4
 coverage/
 *.tsbuildinfo
 .DS_Store
