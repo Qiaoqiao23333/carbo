@@ -215,21 +215,35 @@ new Carbo({
 
 ## The demo page
 
-`docs/` holds a full-screen homepage built on the library: the real Carbo fills
-the window, and a tube-shaped opening follows your cursor — inside it she is
-sharp and lit, outside she is dark and out of focus. The mood grading, the
-playback speed, the size of the opening and the readout are all driven by a
-live `Carbo` instance, ticking at 360× real time.
+`docs/` holds a full-screen homepage built on the library. A clip of the real
+Carbo — peering down a cardboard tube — stands at full window height, and your
+cursor's horizontal position is its playhead, so moving your hand runs the
+camera back and forth over her. Behind the clip, the same frame blown up and
+blurred fills the rest of the window, so the video has no visible edge. The
+mood grading, how eagerly the playhead chases the cursor, and the readout are
+all driven by a live `Carbo` instance ticking at 360× real time.
+
+An earlier version matched the cursor to whichever frame had the tube nearest
+that spot. It put her exactly where you pointed, but it jumped around the
+timeline to do it and the picture flickered. Mapping the cursor to *time*
+instead keeps the footage continuous, and a cap on the scrub rate stops a fast
+sweep from becoming a blur.
+
+The clip is re-encoded with every frame a keyframe, so seeking to an arbitrary
+time is instant instead of decoding forward from the last keyframe.
 
 It is plain static files with no build step at serve time, so any static host
-works:
+works. The host does need to support HTTP range requests — `python3 -m
+http.server` does not, and without them the browser cannot seek and the page
+sits on the first frame:
 
 ```sh
-npm run build          # regenerates docs/carbo.js from src/
-cd docs && python3 -m http.server 8765
+npm run build       # regenerates docs/carbo.js from src/
+npx serve docs      # or any range-capable static server
 ```
 
-The page needs `docs/carbo1.mp4` — the source clip — to be present.
+This repository is private, so there is no public deployment of the page; the
+clip of the real Carbo it is built around stays in here.
 
 ## Development
 

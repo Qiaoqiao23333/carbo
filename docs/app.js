@@ -1,7 +1,17 @@
 /**
- * The homepage is a live instance of the library, not a mock-up of one.
- * The mood, the bars, how the video is graded and how fast it plays are all
- * read straight off a `Carbo` and re-read every frame.
+ * Two things are going on here.
+ *
+ * The cat is a live instance of the library: her needs drift, her mood follows
+ * from them, and the page's grading and readout are re-read off her every frame.
+ *
+ * The clip is a scrubber. The cursor's horizontal position is the playhead, so
+ * moving left and right runs the footage backwards and forwards under your
+ * hand. An earlier version matched the cursor to whichever frame had the tube
+ * nearest that spot, which put her exactly where you pointed but jumped around
+ * the timeline to do it — the picture flickered and it was unpleasant to look
+ * at. Mapping to time instead keeps the footage continuous, so every movement
+ * is a real camera movement, and the rate cap below stops a fast sweep from
+ * turning into a blur.
  */
 import { Carbo, thresholds } from './carbo.js';
 
@@ -10,23 +20,31 @@ const SIM_MINUTES_PER_REAL_SECOND = 6;
 /** However long you were away, she skips at most twelve of her hours. */
 const CATCH_UP_CAP = 720;
 const STORAGE_KEY = 'carbo:v1';
-/** How quickly the tube catches up to the cursor. 1 would be instant. */
-const FOLLOW = 0.16;
 
 /**
- * Per-mood presentation. `rate` is the video's playback speed and `hole` scales
- * the tube: a sleepy cat drifting at 0.55× behind a narrowed opening carries
- * the state better than any label does. Keep the `hole` range tight — the tube
- * resizing under the cursor should be felt, not noticed.
+ * The most clip-seconds the playhead may cover in one real second. This is the
+ * whole anti-flicker measure: a sweep across the window is 23 seconds of
+ * footage, and without a cap it would arrive in one.
+ */
+const MAX_SCRUB_RATE = 2.4;
+/** Speed she drifts at when nobody has touched the mouse yet. */
+const IDLE_RATE = 0.3;
+/** Don't bother the decoder for a seek smaller than this. */
+const SEEK_EPSILON = 0.01;
+
+/**
+ * Per-mood presentation. `follow` is how eagerly the playhead chases the
+ * cursor — an aloof cat that takes her time getting there says more than a
+ * label does.
  */
 const MOODS = {
-  sleepy: { glow: '#5b7fb8', rate: 0.55, hole: 0.82, note: 'out cold' },
-  hungry: { glow: '#d9772f', rate: 1.0, hole: 1.06, note: 'staring at the cupboard' },
-  restless: { glow: '#c8434f', rate: 1.5, hole: 1.1, note: 'looking for trouble' },
-  aloof: { glow: '#7b8592', rate: 0.8, hole: 0.9, note: 'keeping her distance' },
-  affectionate: { glow: '#dd9dbd', rate: 0.85, hole: 1.14, note: 'velcro cat' },
-  playful: { glow: '#49b08a', rate: 1.35, hole: 1.12, note: 'up for anything' },
-  content: { glow: '#c9a227', rate: 0.95, hole: 1, note: 'perfectly fine' },
+  sleepy: { glow: '#5b7fb8', follow: 0.03, note: 'out cold' },
+  hungry: { glow: '#d9772f', follow: 0.1, note: 'staring at the cupboard' },
+  restless: { glow: '#c8434f', follow: 0.16, note: 'looking for trouble' },
+  aloof: { glow: '#7b8592', follow: 0.05, note: 'keeping her distance' },
+  affectionate: { glow: '#dd9dbd', follow: 0.14, note: 'velcro cat' },
+  playful: { glow: '#49b08a', follow: 0.18, note: 'up for anything' },
+  content: { glow: '#c9a227', follow: 0.09, note: 'perfectly fine' },
 };
 
 /** A stat is "alerting" once it has crossed the line the library cares about. */
@@ -46,8 +64,7 @@ const el = {
   meta: document.getElementById('meta'),
   log: document.getElementById('log'),
   hint: document.getElementById('hint'),
-  hud: document.getElementById('hud'),
-  sound: document.getElementById('sound'),
+  ambient: document.getElementById('ambient'),
   sleepBtn: document.getElementById('sleepBtn'),
   reset: document.getElementById('reset'),
   actions: document.querySelector('.actions'),
@@ -59,10 +76,44 @@ const el = {
   ),
 };
 
-let cat = load();
-wire(cat);
+// -------------------------------------------------------------- the layout
+
+/** Full window height, centred, aspect preserved — the page fills in behind. */
+function relayout() {
+  const height = window.innerHeight;
+  const ratio = el.video.videoWidth / el.video.videoHeight || 464 / 848;
+  const width = height * ratio;
+
+  Object.assign(el.video.style, {
+    width: `${width}px`,
+    height: `${height}px`,
+    left: `${(window.innerWidth - width) / 2}px`,
+    top: '0px',
+  });
+}
+
+window.addEventListener('resize', relayout);
+el.video.addEventListener('loadedmetadata', relayout);
+relayout();
+
+/**
+ * Repaint the background from the frame on screen.
+ *
+ * The canvas is 32x57, so the "blur" is mostly the browser scaling it up by a
+ * factor of forty; the CSS blur only takes off the last of the blockiness. It
+ * costs almost nothing per frame.
+ */
+const ambient = el.ambient.getContext('2d', { alpha: false });
+
+function paintAmbient() {
+  if (!ambient || el.video.readyState < 2) return;
+  ambient.drawImage(el.video, 0, 0, el.ambient.width, el.ambient.height);
+}
 
 // ------------------------------------------------------------- persistence
+
+let cat = load();
+wire(cat);
 
 function load() {
   let saved;
@@ -158,8 +209,6 @@ document.addEventListener('click', (event) => {
   if (event.target.closest('.hud, .masthead')) return;
   ripple(event.clientX, event.clientY);
   act(() => cat.pet());
-  // The first click also satisfies autoplay policies, if they bit earlier.
-  void el.video.play().catch(() => {});
 });
 
 function ripple(x, y) {
@@ -170,15 +219,6 @@ function ripple(x, y) {
   document.body.append(mark);
   mark.addEventListener('animationend', () => mark.remove());
 }
-
-el.sound.addEventListener('click', () => {
-  const turningOn = el.video.muted;
-  el.video.muted = !turningOn;
-  el.sound.setAttribute('aria-pressed', String(turningOn));
-  el.sound.innerHTML = turningOn
-    ? '<span aria-hidden="true">🔊</span> sound'
-    : '<span aria-hidden="true">🔈</span> sound';
-});
 
 el.reset.addEventListener('click', () => {
   try {
@@ -192,38 +232,29 @@ el.reset.addEventListener('click', () => {
   paint();
 });
 
-// ------------------------------------------------------- the tube's position
+// ------------------------------------------------------------- the playhead
 
-const pointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-const tube = { ...pointer };
-let moved = false;
+/** Where along the clip the cursor is asking for, as a fraction. */
+let wanted = null;
+let shownTime = 0;
 
-function aimAt(x, y) {
-  pointer.x = x;
-  pointer.y = y;
-  if (!moved) {
-    moved = true;
-    el.hint.classList.add('gone');
-  }
+function aimAt(clientX) {
+  wanted = Math.min(1, Math.max(0, clientX / window.innerWidth));
+  el.hint.classList.add('gone');
 }
 
-document.addEventListener('pointermove', (event) => aimAt(event.clientX, event.clientY));
-document.addEventListener('pointerdown', (event) => aimAt(event.clientX, event.clientY));
-window.addEventListener('resize', () => {
-  // Keep it in frame if the window shrinks under it.
-  pointer.x = Math.min(pointer.x, window.innerWidth);
-  pointer.y = Math.min(pointer.y, window.innerHeight);
+document.addEventListener('pointermove', (event) => aimAt(event.clientX));
+document.addEventListener('pointerdown', (event) => {
+  aimAt(event.clientX);
+  // Some mobile browsers won't paint a video frame until it has been allowed
+  // to play once. Doing it here keeps it inside a user gesture.
+  void el.video
+    .play()
+    .then(() => el.video.pause())
+    .catch(() => {});
 });
 
-/**
- * Rendered width of the clip, before the mood widens or narrows it. The tube's
- * opening is about 87% of the frame's width, so this lands the opening itself
- * at roughly a quarter of the shorter viewport edge.
- */
-function baseWidth() {
-  const shorter = Math.min(window.innerWidth, window.innerHeight);
-  return shorter * (window.innerWidth < 880 ? 0.46 : 0.3);
-}
+el.video.addEventListener('loadedmetadata', () => el.video.pause());
 
 // ------------------------------------------------------------------- render
 
@@ -239,10 +270,8 @@ function paint() {
     el.body.dataset.mood = mood;
     root.style.setProperty('--glow', look.glow);
     el.mood.textContent = mood;
-    el.video.playbackRate = look.rate;
   }
 
-  root.style.setProperty('--vw', `${baseWidth() * look.hole}px`);
   el.body.dataset.asleep = String(cat.asleep);
   el.sleepBtn.textContent = cat.asleep ? 'wake her' : 'nap';
 
@@ -258,10 +287,6 @@ function paint() {
     `${cat.ageInDays.toFixed(1)} days`,
     cat.asleep ? 'asleep' : look.note,
   ].join(' · ');
-
-  // Pausing rather than just slowing it down is what sells "she is asleep".
-  if (cat.asleep) el.video.pause();
-  else void el.video.play().catch(() => {});
 }
 
 // --------------------------------------------------------------- the clock
@@ -274,15 +299,37 @@ function frame(now) {
   // gap means the tab was throttled, not that centuries passed.
   const elapsed = Math.min(Math.max(now - last, 0), 1000);
   last = now;
+  const seconds = elapsed / 1000;
 
-  cat.tick((elapsed / 1000) * SIM_MINUTES_PER_REAL_SECOND);
+  cat.tick(seconds * SIM_MINUTES_PER_REAL_SECOND);
 
-  // Ease towards the cursor rather than snapping: a tube this heavy should
-  // have some weight to it.
-  tube.x += (pointer.x - tube.x) * FOLLOW;
-  tube.y += (pointer.y - tube.y) * FOLLOW;
-  root.style.setProperty('--x', `${tube.x.toFixed(1)}px`);
-  root.style.setProperty('--y', `${tube.y.toFixed(1)}px`);
+  const duration = el.video.duration;
+  if (duration > 0) {
+    let step;
+    if (cat.asleep) {
+      step = 0; // she is not following anything right now
+    } else if (wanted === null) {
+      step = IDLE_RATE * seconds; // drift gently until someone points
+    } else {
+      step = (wanted * duration - shownTime) * MOODS[cat.mood].follow;
+    }
+
+    // The cap is what keeps a fast sweep watchable instead of a strobe.
+    const most = MAX_SCRUB_RATE * seconds;
+    shownTime += Math.min(most, Math.max(-most, step));
+
+    if (wanted === null && shownTime >= duration - 0.06) {
+      shownTime = 0; // the idle drift loops
+    } else {
+      shownTime = Math.min(duration - 0.05, Math.max(0, shownTime));
+    }
+
+    if (!el.video.seeking && Math.abs(el.video.currentTime - shownTime) > SEEK_EPSILON) {
+      el.video.currentTime = shownTime;
+    }
+  }
+
+  paintAmbient();
 
   // The simulation runs every frame; the readout only needs ten updates a second.
   if (now - lastPainted > 100) {

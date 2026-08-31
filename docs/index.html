@@ -21,35 +21,41 @@
 
   <body data-mood="content" data-asleep="false">
     <!--
-      The tube is not drawn — it is in the footage. The clip is masked down to
-      a soft circle centred on its own opening and moved so that opening sits
-      under the cursor, so what follows you is the real thing.
+      Full window height, centred, and never played on its own: the cursor's
+      horizontal position is the playhead, so moving your hand runs the camera
+      back and forth. See app.js for why this beats jumping to whichever frame
+      had the tube nearest the cursor.
     -->
-    <div class="tube" id="tube" aria-hidden="true">
-      <div class="spill"></div>
-      <video
-        id="video"
-        src="./carbo1.mp4"
-        poster="./assets/poster.jpg"
-        muted
-        loop
-        playsinline
-        autoplay
-        preload="auto"
-      ></video>
-      <div class="zzz">z &nbsp;z &nbsp;z</div>
-    </div>
+    <!--
+      The page's background is the current frame itself: a 32x57 canvas redrawn
+      from the video and blown up under a heavy blur. A static image behind a
+      clip being scrubbed drifts out of tone with it, and that mismatch is what
+      makes the edge of the video visible.
+    -->
+    <canvas id="ambient" class="ambient" width="32" height="57" aria-hidden="true"></canvas>
 
+    <video
+      id="video"
+      src="./carbo1.mp4"
+      poster="./assets/poster.jpg"
+      muted
+      playsinline
+      preload="auto"
+      aria-hidden="true"
+    ></video>
+
+    <div class="zzz" id="zzz" aria-hidden="true">z &nbsp;z &nbsp;z</div>
     <p class="bubble" id="bubble" role="status" aria-live="polite"></p>
 
-    <!-- The library, over the top. -->
     <header class="masthead">
       <h1>carbo</h1>
       <p class="tagline">
         A tiny virtual cat, modelled after a real kitten of the same name.
       </p>
       <code class="install">npm install carbo</code>
-      <p class="hint" id="hint">Move your cursor — click her to pet.</p>
+      <p class="hint" id="hint">
+        Move your cursor left and right. Click her to pet.
+      </p>
     </header>
 
     <footer class="hud" id="hud">
@@ -87,9 +93,6 @@
       </div>
 
       <div class="meta-actions">
-        <button type="button" id="sound" aria-pressed="false">
-          <span aria-hidden="true">🔈</span> sound
-        </button>
         <a href="https://github.com/CARBO_REPO_SLUG">source</a>
         <button type="button" id="reset" class="linkish">start over</button>
       </div>
@@ -101,8 +104,7 @@
     <noscript>
       <p class="noscript">
         This page is a live instance of the <code>carbo</code> library, so it
-        needs JavaScript. The library is on
-        <a href="https://github.com/CARBO_REPO_SLUG">GitHub</a>.
+        needs JavaScript.
       </p>
     </noscript>
   </body>
