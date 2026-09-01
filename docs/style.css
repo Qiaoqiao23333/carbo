@@ -85,7 +85,7 @@ body {
 .room {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: 1;
   transform: translate3d(
       calc(var(--pan-x) + var(--bump-x)),
       calc(var(--pan-y) + var(--bump-y)),
@@ -99,11 +99,51 @@ body {
   transition: filter 1.4s ease;
 }
 
-/* Size and position come from JS; both clips are stacked on the same anchor. */
+/*
+ * The frame on screen, tiny and blown up under a heavy blur, filling the window
+ * behind the clip. Overscanned so the blur has material past every edge, and
+ * dark enough to read as the inside of the tube rather than as a backdrop.
+ */
+.ambient {
+  position: fixed;
+  left: -9%;
+  top: -9%;
+  width: 118%;
+  height: 118%;
+  z-index: 0;
+  filter: blur(64px) saturate(1.15) brightness(0.44);
+  pointer-events: none;
+}
+
+/*
+ * Size and position come from JS; both clips are stacked on the same anchor.
+ *
+ * The edges are feathered into the blur behind — which is the same frame in the
+ * same tone — so there is no line where the clip stops. Two masks intersected
+ * rather than one radial: the element is twice as tall as the window, so a
+ * radial would feather in the wrong place vertically.
+ */
 .clip {
   position: absolute;
   object-fit: cover;
-  background: #100c0a;
+  --feather-x: linear-gradient(
+    to right,
+    transparent 0,
+    #000 7%,
+    #000 93%,
+    transparent 100%
+  );
+  --feather-y: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 4%,
+    #000 96%,
+    transparent 100%
+  );
+  -webkit-mask-image: var(--feather-x), var(--feather-y);
+  mask-image: var(--feather-x), var(--feather-y);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
 }
 
 /*

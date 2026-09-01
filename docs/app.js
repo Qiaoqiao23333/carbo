@@ -35,24 +35,42 @@ const SOUND_KEY = 'carbo:sound';
  * The clips, and where the hole sits in each one.
  *
  * `anchor` is the point of the footage pinned to the middle of the window, and
- * `fill` is how much wider than the window the hole is asked to be. Both clips
- * are shipped stabilised and cropped in (see the README), which both steadies
- * the hole and makes it wider than the frame it sits in, so `fill` no longer
- * has to ask for extra magnification to keep the tube's white wall out of the
- * page — on any landscape window `cover` in layout() is what governs, which is
- * the least magnification the window can be filled with, and the least
- * magnification is the least movement.
+ * `fill` is a fraction of the least magnification that would cover the window
+ * completely, so a good way under one means the clip stops short of the edges
+ * and the blurred backdrop covers the difference.
+ *
+ * Covering a landscape window is the wrong target: the hole is about as wide as
+ * the frame and her head fills the hole, so anything near 1 crops the top of her
+ * head and her chin off the window and you are looking at the middle of a face
+ * rather than at a cat. Pulling back to 0.7 fits all of her in with a ring of
+ * the tube's own wall around her, and takes another sixth off how far the
+ * picture moves, since the footage's movement is magnified by this too.
+ *
+ * `fillTall` is the same for windows taller than they are wide, where the shape
+ * of the footage already matches the shape of the window and pulling back that
+ * far would only waste the screen.
  */
 const CLIPS = {
-  her: { id: 'her', w: 480, h: 848, anchor: [0.5, 0.36], fill: 0.92 },
-  paw: { id: 'paw', w: 464, h: 848, anchor: [0.5, 0.44], fill: 0.95 },
+  her: {
+    id: 'her',
+    w: 480,
+    h: 848,
+    anchor: [0.5, 0.36],
+    fill: 0.7,
+    fillTall: 0.92,
+  },
+  paw: {
+    id: 'paw',
+    w: 464,
+    h: 848,
+    anchor: [0.5, 0.44],
+    fill: 0.74,
+    fillTall: 0.95,
+  },
 };
 
-/**
- * Past this, magnifying a 480-wide clip stops buying anything but mush — but
- * never at the cost of leaving the window: covering it always wins (see layout).
- */
-const MAX_MAGNIFY = 4.2;
+/** Past this, magnifying a 480-wide clip stops buying anything but mush. */
+const MAX_MAGNIFY = 3.8;
 
 /**
  * The beats. Every one is a stretch of footage where she does a single legible
@@ -71,10 +89,18 @@ const MAX_MAGNIFY = 4.2;
  * to move the page — and the number is how hard.
  */
 const BEATS = {
-  /** Straight down the tube at you, from a polite distance. */
-  watch: { clip: 'her', in: 2.72, out: 4.18 },
+  /**
+   * Straight down the tube at you. These two are the page's home: they are the
+   * only stretch of the take where she holds still and looks into the lens, and
+   * they run into each other — `look` ends a quarter of a second before `watch`
+   * starts, so going from one to the other is invisible.
+   */
+  look: { clip: 'her', in: 1.02, out: 2.55, seam: 45 },
+  watch: { clip: 'her', in: 2.79, out: 4.5, seam: 26 },
   /** Ear and cheek: she is interested in the tube, not in you. */
-  sniff: { clip: 'her', in: 7.34, out: 9.31 },
+  sniff: { clip: 'her', in: 7.47, out: 9.24, seam: 40 },
+  /** The room, out of focus, and then her face back over it. */
+  away: { clip: 'her', in: 17.3, out: 18.3, seam: 119 },
   /** Coming closer. Always played into a contact. */
   lean: { clip: 'her', in: 11.07, out: 12.55 },
   /**
@@ -83,20 +109,15 @@ const BEATS = {
    * looks like it has failed to load.
    */
   press: { clip: 'her', in: 12.6, out: 13.3, contact: 0.8, rate: 0.92 },
-  /** Looking off at the room. The one beat where you are not the subject. */
-  away: { clip: 'her', in: 17.32, out: 18.24 },
   /** All face, filling the hole, nose first. */
   nuzzle: { clip: 'her', in: 18.45, out: 20.38, contact: 1, rate: 0.92 },
   /**
    * The tail of the same stretch, without the arrival: her face resting over the
-   * hole with the light shut out behind it. It is the steadiest footage in the
-   * clip by a factor of two, but at full window it is also very dark and hard to
-   * read as a cat, so it is only where she is dozing rather than a beat the page
-   * sits in generally.
+   * hole with the light shut out behind it. The steadiest footage in the clip by
+   * a factor of two, but also the darkest and the hardest to read as a cat, so
+   * it is only where she is dozing.
    */
-  close: { clip: 'her', in: 19.09, out: 20.38 },
-  /** Settled back down, still watching. */
-  settle: { clip: 'her', in: 21.74, out: 23.03 },
+  close: { clip: 'her', in: 19.09, out: 20.38, seam: 44 },
   /**
    * A paw over the lens, twice, from the second clip.
    *
@@ -109,25 +130,37 @@ const BEATS = {
 };
 
 /**
+ * How different a beat's last frame is from its first, measured offline on the
+ * clip as shipped. Past about thirty the repeat is a visible jump and gets
+ * blinked over like any other cut; `watch` is under it, which is what lets the
+ * page sit on her looking at you for ten seconds without a seam in it.
+ */
+const SEAM_LIMIT = 30;
+
+/**
  * What she cycles through when nothing is happening, in the order the footage
  * runs. Each one repeats a couple of times before the next, because a repeat of
  * a beat cut to loop is nearly invisible and a cut to another one is not.
  */
-const IDLE_ORDER = ['watch', 'sniff', 'away', 'close', 'settle'];
+const IDLE_ORDER = ['look', 'watch', 'sniff', 'away', 'close'];
 
 /**
- * Which of those a mood will sit through. `away` is the busiest of them — she
- * turns her head through most of it — so only the moods it says something about
- * are given it.
+ * Which of those a mood will sit through.
+ *
+ * Most moods only get the two beats where she is looking at you, because at this
+ * size the rest of the take is not legible as a cat: her cheek fills the window
+ * with fur, and the stretch where she settles back is the top of her head. They
+ * are kept for the moods they say something about — a cat with her back to you
+ * is exactly what aloof looks like.
  */
 const IDLE_BY_MOOD = {
-  sleepy: ['close', 'settle'],
-  hungry: ['watch', 'settle'],
+  sleepy: ['close', 'watch'],
+  hungry: ['watch'],
   restless: ['watch', 'sniff', 'away'],
-  aloof: ['away', 'sniff'],
-  affectionate: ['watch', 'settle'],
-  playful: ['watch', 'sniff'],
-  content: ['watch', 'settle'],
+  aloof: ['sniff', 'away'],
+  affectionate: ['look', 'watch'],
+  playful: ['look', 'watch', 'sniff'],
+  content: ['look', 'watch'],
 };
 
 /**
@@ -225,6 +258,17 @@ const CONTACT_COOLDOWN = 11000;
 /** Waving your hand about is what startles her out of an approach. */
 const STARTLE_SPEED = 2.6;
 
+/**
+ * A second pet inside this does not cut the picture again, and this many pets in
+ * a row and she takes herself off.
+ *
+ * Contact beats are the closest footage there is, so cutting to one on every
+ * click walked the framing in until the screen was fur and then dark: the more
+ * you petted her, the less of her there was to see.
+ */
+const PET_AGAIN = 1900;
+const PET_PATIENCE = 4;
+
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const root = document.documentElement;
@@ -234,6 +278,7 @@ const el = {
   paw: document.getElementById('paw'),
   warmth: document.getElementById('warmth'),
   blink: document.getElementById('blink'),
+  ambient: document.getElementById('ambient'),
   bubble: document.getElementById('bubble'),
   mood: document.getElementById('mood'),
   chipMood: document.getElementById('chipMood'),
@@ -260,28 +305,18 @@ CLIPS.paw.el = el.paw;
 // -------------------------------------------------------------- the layout
 
 /**
- * Blow each clip up until the hole she is looking into is wider than the
- * window, then hang it off its anchor point so the middle of the hole is in the
- * middle of the page.
- *
- * The hole is about as wide as the footage, so filling the window means scaling
- * by its longer side, which on a phone held upright is a lot: capped, because
- * past that the picture is only bigger, not better.
+ * Blow each clip up to a fraction of what it would take to cover the window,
+ * then hang it off its anchor point so the middle of the hole is in the middle
+ * of the page. What is left over at the edges is the blurred backdrop.
  */
 function layout() {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const longest = Math.max(vw, vh);
 
   for (const clip of Object.values(CLIPS)) {
-    // Cover first, then fill the hole if the cap allows: an ultrawide window
-    // asks for more magnification than the footage can really give, and a soft
-    // picture is still better than a black band down each side of her. The few
-    // percent over is the room the lean needs to move in without pulling an
-    // edge into the window.
-    const cover = Math.max(vw / clip.w, vh / clip.h) * 1.03;
-    const wanted = (longest * clip.fill) / clip.w;
-    const scale = Math.max(cover, Math.min(MAX_MAGNIFY, wanted));
+    const cover = Math.max(vw / clip.w, vh / clip.h);
+    const fill = vh > vw ? clip.fillTall : clip.fill;
+    const scale = Math.min(MAX_MAGNIFY, cover * fill);
     const w = clip.w * scale;
     const h = clip.h * scale;
     Object.assign(clip.el.style, {
@@ -390,7 +425,8 @@ const state = {
   repeats: 0,
   blocked: false,
   sound: false,
-  petted: false,
+  petAt: -Infinity,
+  petStreak: 0,
 };
 
 function pick(list) {
@@ -405,7 +441,7 @@ function pick(list) {
  * real cut — which is why those are counted and kept rare, and blinked over.
  */
 function idleBeat() {
-  if (cat.asleep) return 'settle';
+  if (cat.asleep) return 'close';
   const allowed = IDLE_BY_MOOD[cat.mood] ?? IDLE_BY_MOOD.content;
 
   if (state.repeats > 0 && allowed.includes(state.beat)) {
@@ -450,7 +486,10 @@ function cue(name, then = null) {
   // and neither has a step to the next stretch of the same take a second later;
   // but a cut between two faces at arm's length reads as a jolt, and covering
   // it costs a flicker of light rather than any movement.
-  if (from && from !== beat) {
+  if (from === beat) {
+    // A repeat. Invisible if the beat was cut to loop, a jump if it was not.
+    if ((beat.seam ?? 0) > SEAM_LIMIT) blink();
+  } else if (from) {
     const sameClip = from.clip === beat.clip;
     if (!sameClip || Math.abs(beat.in - from.out) > 1.2) blink();
   }
@@ -500,8 +539,39 @@ function contact({ x, y, beat, mood = cat.mood } = {}) {
   state.approaching = false;
   // Always pulled back onto her face afterwards: being touched and then finding
   // her looking at you is the shape of it. idleBeat() can offer her looking away.
-  cue(name, () => cue(cat.asleep ? 'press' : pick(['settle', 'watch'])));
+  cue(name, () => cue(cat.asleep ? 'close' : pick(['watch', 'look'])));
 
+  warmAt(x, y);
+  push(force);
+  thump(force);
+  purr(force);
+}
+
+/**
+ * Petting her while she is already against the lens. Everything a contact does
+ * except move the picture: she is as close as she gets, and the answer to being
+ * stroked again is warmth and a purr, not a closer shot.
+ */
+function stroke(x, y) {
+  warmAt(x, y);
+  push(0.34);
+  purr(0.5, 1.9);
+}
+
+/**
+ * How the page answers anything she has just accepted. Either she comes to the
+ * lens, or — if she is already there, or was a moment ago — she is stroked where
+ * she is. Everything that can accept an interaction goes through here, so no
+ * amount of clicking can walk the shot any closer than one contact.
+ */
+function answer(x, y) {
+  const since = performance.now() - state.contactAt;
+  if (since < PET_AGAIN || BEATS[state.beat]?.contact) stroke(x, y);
+  else contact({ x, y });
+}
+
+/** Light, from wherever she landed. */
+function warmAt(x, y) {
   const acrossX = (x ?? window.innerWidth / 2) / window.innerWidth;
   const acrossY = (y ?? window.innerHeight * 0.46) / window.innerHeight;
   root.style.setProperty('--touch-x', `${(acrossX * 100).toFixed(1)}%`);
@@ -509,17 +579,18 @@ function contact({ x, y, beat, mood = cat.mood } = {}) {
   el.warmth.classList.remove('flash');
   void el.warmth.offsetWidth; // restart the animation rather than queue it
   el.warmth.classList.add('flash');
+}
 
-  // One push, damped, in one direction — never an oscillation. A screen that
-  // shakes back and forth is what makes a page like this unpleasant to sit in
-  // front of, and none of the feeling of being touched lives in the second
-  // wobble anyway; it is in the cut, the warmth and the sound.
-  if (!reduceMotion) {
-    state.bump = Math.max(state.bump, force);
-    state.bumpAngle = Math.random() * Math.PI * 2;
-  }
-  thump(force);
-  purr(force);
+/**
+ * One push, damped, in one direction — never an oscillation. A screen that
+ * shakes back and forth is what makes a page like this unpleasant to sit in
+ * front of, and none of the feeling of being touched lives in the second wobble
+ * anyway; it is in the cut, the warmth and the sound.
+ */
+function push(force) {
+  if (reduceMotion) return;
+  state.bump = Math.max(state.bump, force);
+  state.bumpAngle = Math.random() * Math.PI * 2;
 }
 
 /** She has decided to come over, which takes her a couple of seconds. */
@@ -555,7 +626,7 @@ function startle() {
 function act(fn) {
   const interaction = fn();
   sayInteraction(interaction);
-  if (interaction.accepted) contact({});
+  if (interaction.accepted) answer();
   else cue('away', () => cue(idleBeat()));
   save();
   paint();
@@ -612,10 +683,27 @@ document.addEventListener('pointerdown', (event) => {
   ripple(event.clientX, event.clientY);
   const interaction = cat.pet();
   sayInteraction(interaction);
-  if (interaction.accepted) contact({ x: event.clientX, y: event.clientY });
-  else cue('away', () => cue(idleBeat()));
+  const now = performance.now();
 
-  state.petted = true;
+  if (!interaction.accepted) {
+    state.petStreak = 0;
+    cue('away', () => cue(idleBeat()));
+  } else {
+    state.petStreak = now - state.petAt < 2600 ? state.petStreak + 1 : 1;
+    state.petAt = now;
+
+    if (state.petStreak > PET_PATIENCE) {
+      // Hands on a kitten for the fifth time running: she takes herself off,
+      // which is both what a cat does and the page's way out of a click loop.
+      state.petStreak = 0;
+      state.contactAt = now;
+      cue('away', () => cue(idleBeat()));
+      say('She has had enough of that for the moment.', true);
+    } else {
+      answer(event.clientX, event.clientY);
+    }
+  }
+
   el.hint.classList.add('gone');
   save();
   paint();
@@ -803,23 +891,32 @@ function paint() {
  * through the hole, and a rim in the wrong colour is how you notice it is a
  * gradient drawn over a video.
  */
-const swatch = document.createElement('canvas');
-swatch.width = 8;
-swatch.height = 8;
-const swatchCtx = swatch.getContext('2d', { alpha: false, willReadFrequently: true });
+const ambient = el.ambient.getContext('2d', { alpha: false, willReadFrequently: true });
 let sampledAt = 0;
 /* Eased in JS rather than by a CSS transition: the sample lands several times a
    second, and a transition that keeps getting restarted never arrives. */
 const warmth = { r: 46, g: 34, b: 27 };
 
-function sampleWarmth(now) {
-  if (!swatchCtx || now - sampledAt < 180) return;
-  sampledAt = now;
+/**
+ * Repaint the backdrop from the frame on screen, and take the tube's colour off
+ * the same 32x57 pixels.
+ *
+ * The "blur" is mostly the browser scaling those pixels up by a factor of forty;
+ * the CSS blur only takes off the last of the blockiness, and it costs almost
+ * nothing per frame. Doing both jobs from one canvas also guarantees the rim and
+ * the backdrop can never disagree about what is on screen — a rim in the wrong
+ * colour is how you notice it is a gradient drawn over a video.
+ */
+function paintAmbient(now) {
+  if (!ambient) return;
   const video = el.paw.classList.contains('on') ? el.paw : el.her;
   if (video.readyState < 2) return;
+  ambient.drawImage(video, 0, 0, el.ambient.width, el.ambient.height);
+
+  if (now - sampledAt < 180) return;
+  sampledAt = now;
   try {
-    swatchCtx.drawImage(video, 0, 0, swatch.width, swatch.height);
-    const { data } = swatchCtx.getImageData(0, 0, swatch.width, swatch.height);
+    const { data } = ambient.getImageData(0, 0, el.ambient.width, el.ambient.height);
     let r = 0;
     let g = 0;
     let b = 0;
@@ -927,7 +1024,7 @@ function frame(now) {
     root.style.setProperty('--push', state.push.toFixed(4));
   }
 
-  sampleWarmth(now);
+  paintAmbient(now);
 
   // The simulation runs every frame; the readout only needs ten updates a second.
   if (now - lastPainted > 100) {
@@ -967,7 +1064,7 @@ async function open() {
 
   await wait(reduceMotion ? 900 : 1900);
   if (cat.asleep) {
-    cue('settle');
+    cue('close');
     say('She is asleep in the tube. You are welcome to wait.', true);
   } else {
     // Deliberately a beat off the second clip: it is 300KB and its first beat

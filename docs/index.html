@@ -30,6 +30,20 @@
       .room carries the parallax and the shake, so a contact moves the whole
       world rather than one element.
     -->
+    <!--
+      The page behind the clip: the same frame at 32x57, blown up under a heavy
+      blur and darkened. The clip no longer covers the window — see fill in
+      app.js — and this is what its edges melt into, so there is still no line
+      anywhere that says "video".
+    -->
+    <canvas
+      id="ambient"
+      class="ambient"
+      width="32"
+      height="57"
+      aria-hidden="true"
+    ></canvas>
+
     <div class="room" id="room">
       <video
         id="her"

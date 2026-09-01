@@ -218,9 +218,10 @@ new Carbo({
 `docs/` holds a full-screen homepage built on the library. Two clips of the real
 Carbo — one shot from inside a cardboard tube she was peering down, one from
 inside a box she was reaching into — are blown up and hung off an anchor point
-so that the hole she is looking into is wider than the window. The page is the
-inside of that tube: her face covers all of it, the corners are dark, and there
-is no edge of a video anywhere on screen.
+that puts the hole she is looking into in the middle of the window. The page is
+the inside of that tube: her face has nearly all of it, the corners are dark, and
+behind her the same frame at 32x57 pixels, blown up under a heavy blur, fills
+whatever is left, so there is no edge of a video anywhere on screen.
 
 The footage plays in *beats*: short marked stretches of the clips, each one a
 single thing she does. Watching you. Sniffing the rim. Leaning in. Putting her
@@ -228,7 +229,11 @@ face over the hole until it blocks the light. A paw landing on the lens. Your
 cursor does not scrub the timeline any more — it only decides which beat comes
 next. Hold still and she comes over and touches the lens, which pushes the page,
 warms the light where she landed, and purrs. Wave your hand about and she backs
-off. Click anywhere and she is petted, and she may decline. The mood grading,
+off. Click anywhere and she is petted, and she may decline. Pet her again while
+she is still against the lens and she is stroked where she is rather than brought
+closer — cutting to a closer beat on every click used to walk the picture in
+until there was nothing left to see — and keep at it and she takes herself off.
+The mood grading,
 how far the page leans with your cursor, how long you have to hold still before
 she comes, and the readout are all driven by a live `Carbo` instance ticking at
 360× real time.
@@ -254,7 +259,7 @@ lands quickly instead of decoding forward from the last keyframe.
 The first version of this was unpleasant to look at, and all of it came from the
 same place: a page filling the window with a handheld clip magnified three times
 is showing you three times the camera shake it was shot with, and that adds up
-fast. Four things were done about it, in order of how much they were worth.
+fast. Five things were done about it, in order of how much they were worth.
 
 1. **The clips are shipped stabilised.** An offline pass estimates the camera's
    own movement frame by frame, subtracts everything above about a third of a
@@ -269,9 +274,15 @@ fast. Four things were done about it, in order of how much they were worth.
    close to where they began — the second half of that being what lets a beat
    repeat without the repeat showing. The busiest thirds of the take are never
    played.
-3. **Everything runs at about three quarters speed**, which reads as a cat
+3. **The clip is not asked to cover the window.** It is drawn at 70% of the
+   magnification that would, with the blurred backdrop taking up the slack. That
+   was worth doing for the framing alone — covering a landscape window with a
+   portrait clip crops the top of her head and her chin off it, so you get the
+   middle of a face rather than a cat — and it takes another sixth off the
+   movement for free, because the footage's own shake is magnified by this too.
+4. **Everything runs at about three quarters speed**, which reads as a cat
    taking her time rather than as slow motion.
-4. **The page adds almost no motion of its own.** An earlier version shook the
+5. **The page adds almost no motion of its own.** An earlier version shook the
    whole window on contact and leaned it a quarter of an inch with the cursor;
    now a contact is a single damped push of a few pixels, there is no rotation
    at any strength, and the lean is about a third of what it was. Hard cuts are
@@ -280,9 +291,17 @@ fast. Four things were done about it, in order of how much they were worth.
 Measured off the clips as they ship — movement per frame within the beats that
 actually get played, times the playback rate, times the magnification the window
 asks for — the picture went from sliding around 43% of the window's width every
-second to around 17%. On screenshots of the running page, the number of hard
-changes between samples fell by two thirds. `prefers-reduced-motion` drops the
-lean, the push and the blink entirely; she still comes and goes.
+second to around 11%. On screenshots of the running page, the number of hard
+changes between samples fell by two thirds and the worst quarter of them halved.
+`prefers-reduced-motion` drops the lean, the push and the blink entirely; she
+still comes and goes.
+
+The beats were re-chosen twice over: once on movement, and then again on what
+they actually look like at this size, which is not the same question. Her cheek
+is the steadiest thing in the take and reads as a rug; the closest, darkest
+stretch is steadier still and reads as nothing at all. What survived is the four
+seconds where she holds still and looks into the lens, which is now where the
+page sits.
 
 Nothing makes a sound until you have clicked once, because nothing is allowed
 to; the purr is synthesised rather than lifted off the clips, and the corner
